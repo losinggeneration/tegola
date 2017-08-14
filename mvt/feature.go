@@ -3,6 +3,7 @@ package mvt
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/go-spatial/tegola/maths"
 	"github.com/go-spatial/tegola/maths/points"
 	"github.com/go-spatial/tegola/maths/validate"
-	"github.com/go-spatial/tegola/mvt/vector_tile"
+	vectorTile "github.com/go-spatial/tegola/mvt/vector_tile"
 )
 
 // errors
@@ -108,6 +109,90 @@ func (f *Feature) VTileFeature(ctx context.Context, keys []string, vals []interf
 	tf.Type = &gtype
 
 	return tf, nil
+}
+
+// FeatureFromVTileFeature will return a Tile_Feature object from the given vectorTile Feature object
+func FeatureFromVTileFeature(f *vectorTile.Tile_Feature, keys []string, values []*vectorTile.Tile_Value, extent int) (*Feature, error) {
+	var feature Feature
+
+	id := f.GetId()
+	feature.ID = &id
+	tags, err := zipTags(f.GetTags())
+	if err != nil {
+		return nil, err
+	}
+
+	feature.Tags = make(map[string]interface{})
+	for _, tag := range tags {
+		feature.Tags[keys[tag[0]]] = decodeValue(values[tag[1]])
+	}
+
+	feature.Geometry, err = decodeGeometry(f.GetType(), f.GetGeometry(), extent)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("geometry: %#v\n", feature.Geometry)
+
+	return &feature, nil
+}
+
+func zipTags(tags []uint32) ([][2]uint32, error) {
+	if len(tags)%2 != 0 {
+		return nil, errors.New("expected feature tags to be a multiple of 2")
+	}
+
+	t := make([][2]uint32, len(tags)/2)
+
+	for i := 0; i*2 < len(tags); i++ {
+		t[i][0], t[i][1] = tags[i*2], tags[i*2+1]
+	}
+
+	return t, nil
+}
+
+func decodeValue(v *vectorTile.Tile_Value) interface{} {
+	if v.BoolValue != nil {
+		return v.GetBoolValue()
+	}
+
+	if v.StringValue != nil {
+		return v.GetStringValue()
+	}
+
+	if v.IntValue != nil {
+		return v.GetIntValue()
+	}
+
+	if v.SintValue != nil {
+		return v.GetSintValue()
+	}
+
+	if v.UintValue != nil {
+		return v.GetUintValue()
+	}
+
+	if v.FloatValue != nil {
+		return v.GetFloatValue()
+	}
+
+	if v.DoubleValue != nil {
+		return v.GetDoubleValue()
+	}
+
+	return nil
+}
+
+func decodeZigZag(i uint32) uint32 {
+	return (i >> 1) ^ (-(i & 1))
+}
+
+func decodeGeometry(geoType vectorTile.Tile_GeomType, geom []uint32, extent int) (tegola.Geometry, error) {
+	switch geoType {
+	case vectorTile.Tile_POINT:
+		fmt.Println("original geometry", geom, geom[1], geom[2])
+		return &basic.Point{float64(decodeZigZag(geom[1])), float64(decodeZigZag(geom[2]))}, nil
+	}
+	return nil, errors.New("unknown geometry type")
 }
 
 // These values came from: https://github.com/mapbox/vector-tile-spec/tree/master/2.1

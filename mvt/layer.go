@@ -110,6 +110,25 @@ func (l *Layer) VTileLayer(ctx context.Context, tile *tegola.Tile) (*vectorTile.
 	return vtl, nil
 }
 
+// LayerFromVTileLayer will return a Tile_Layer object from the given vectorTile Layer object
+func LayerFromVTileLayer(l *vectorTile.Tile_Layer) (*Layer, error) {
+	extent := int(l.GetExtent())
+	layer := Layer{
+		Name:     l.GetName(),
+		extent:   &extent,
+		features: make([]Feature, 0),
+	}
+
+	for _, feature := range l.GetFeatures() {
+		f, err := FeatureFromVTileFeature(feature, l.GetKeys(), l.GetValues(), extent)
+		if err != nil {
+			return nil, err
+		}
+		layer.features = append(layer.features, *f)
+	}
+	return &layer, nil
+}
+
 //Version is the version of tile spec this layer is from.
 func (*Layer) Version() int { return 2 }
 

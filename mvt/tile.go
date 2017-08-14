@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/go-spatial/tegola"
-	"github.com/go-spatial/tegola/mvt/vector_tile"
+	vectorTile "github.com/go-spatial/tegola/mvt/vector_tile"
 )
 
 //Tile describes a tile.
@@ -56,4 +56,17 @@ func (t *Tile) VTile(ctx context.Context, tile *tegola.Tile) (vt *vectorTile.Til
 		vt.Layers = append(vt.Layers, vtl)
 	}
 	return vt, nil
+}
+
+//TileFromVTile will return a Tile object from the given vectorTile Tile object
+func TileFromVTile(t *vectorTile.Tile) (*Tile, error) {
+	tile := Tile{layers: make([]Layer, 0)}
+	for _, layer := range t.Layers {
+		l, err := LayerFromVTileLayer(layer)
+		if err != nil {
+			return nil, err
+		}
+		tile.layers = append(tile.layers, *l)
+	}
+	return &tile, nil
 }
